@@ -114,6 +114,45 @@ Finally to force library load and resolution of all symbols, call
 
     void _LIBNAME_tramp_resolve_all(void);
 
+## CMake usage
+
+Implib.so can be used in a CMake project in the following way:
+
+```cmake
+add_subdirectory(/path/to/Implib.so)
+
+add_executable(your_target ...)
+add_library(lib_to_delay_load ...) # to use with implib
+
+# Use a special flavor of implib-aware linking:
+# The linked library must exist as a target to generate implib for it
+# PUBLIC/PRIVATE/INTERFACE keyword could be optionally added as well
+target_link_implib_libraries(your_target lib_to_delay_load)
+
+# Optionally, use IMPLIB_EXPORT_SHIMS to make the stubs publicly visible
+target_compile_definitions(your_target PRIVATE IMPLIB_EXPORT_SHIMS)
+```
+
+Implib.so can be built as a standalone project with CMake to run the tests:
+
+```
+mkdir build
+cd build
+cmake ..
+make
+
+╰─❯ ctest
+Test project /home/marcusmae/forge/Implib.so/build
+    Start 1: StandaloneTest
+1/2 Test #1: StandaloneTest ...................   Passed    0.02 sec
+    Start 2: ShlibTest
+2/2 Test #2: ShlibTest ........................   Passed    0.02 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.05 sec
+```
+
 # Wrapping vtables
 
 By default the tool does not try to wrap vtables exported from the library. This can be enabled via `--vtables` flag:
