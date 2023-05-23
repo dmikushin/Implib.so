@@ -504,6 +504,8 @@ Examples:
     target = args.target.split('-')[0]
   quiet = args.quiet
   outdir = args.outdir
+  if not os.path.exists(outdir):
+    os.makedirs(outdir)
 
   if not os.path.exists(outdir):
     os.makedirs(outdir)
