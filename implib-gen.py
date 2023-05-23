@@ -410,6 +410,9 @@ Examples:
   parser.add_argument('--outdir', '-o',
                       help="Path to create wrapper at",
                       default='./')
+  parser.add_argument('--suffix',
+                      help="Specify a custom suffix for output files.",
+                      default=None)
 
   args = parser.parse_args()
 
@@ -575,7 +578,7 @@ Examples:
 
   # Generate assembly code
 
-  suffix = os.path.basename(input_name)
+  suffix = args.suffix if args.suffix is not None else os.path.basename(input_name)
   lib_suffix = re.sub(r'[^a-zA-Z_0-9]+', '_', suffix)
 
   tramp_file = '{}.tramp.S'.format(suffix)
