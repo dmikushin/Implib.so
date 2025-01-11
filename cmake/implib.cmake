@@ -4,7 +4,7 @@ enable_language(ASM)
 
 function(target_link_implib_libraries target)
   set(options PUBLIC PRIVATE INTERFACE)
-  set(oneValueArgs)
+  set(oneValueArgs DLOPEN_CALLBACK)
   set(multiValueArgs)
   cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -16,6 +16,11 @@ function(target_link_implib_libraries target)
     set(linkage INTERFACE)
   else()
     set(linkage "")
+  endif()
+
+  set(dlopen_callback_arg "")
+  if (ARG_DLOPEN_CALLBACK)
+    set(dlopen_callback_arg "--dlopen-callback=${ARG_DLOPEN_CALLBACK}")
   endif()
 
   foreach(implib IN LISTS ARG_UNPARSED_ARGUMENTS)
@@ -31,6 +36,7 @@ function(target_link_implib_libraries target)
       COMMAND ${implib-gen} -q
         --target ${CMAKE_SYSTEM_PROCESSOR}
         --vtables
+        ${dlopen_callback_arg}
         #--undefined-symbols
         --suffix ${implib} $<TARGET_FILE:${implib}>
       DEPENDS ${implib} ${implib-gen}
@@ -54,3 +60,4 @@ function(target_link_implib_libraries target)
     target_link_libraries(${target} ${linkage} ${CMAKE_DL_LIBS})
   endif()
 endfunction()
+
