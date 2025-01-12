@@ -77,16 +77,28 @@ def parse_row(words, toc, hex_keys):
   return vals
 
 def collect_syms(f):
-  """Collect ELF dynamic symtab."""
+  """Collect ELF dynamic symtab and determine visibility using nm."""
 
-  # --dyn-syms does not always work for some reason so dump all symtabs
-  out, _ = run(['readelf', '-sW', f])
+  # Use nm to determine visibility
+  nm_out, _ = run(['nm', '-g', f])
+
+  # Parse nm output to get visibility
+  visibility = {}
+  for line in nm_out.splitlines():
+    parts = line.split()
+    if len(parts) >= 3:
+      symbol_type = parts[1]
+      symbol_name = parts[2]
+      visibility[symbol_name] = 'PUBLIC' if symbol_type == 'T' else 'HIDDEN'
+
+  # Use readelf to collect symbols
+  readelf_out, _ = run(['readelf', '-sW', f])
 
   toc = None
   syms = []
   syms_set = set()
 
-  for line in out.splitlines():
+  for line in readelf_out.splitlines():
     line = line.strip()
 
     # Strip out strange markers in powerpc64le ELFs
@@ -112,7 +124,7 @@ def collect_syms(f):
       if name in syms_set:
         continue
       syms_set.add(name)
-      sym['Size'] = int(sym['Size'], 0)  # Readelf is inconsistent about Size format
+      sym['Size'] = int(sym['Size'], 0)  # Readelf is inconsistent on Size format
       if '@' in name:
         sym['Default'] = '@@' in name
         name, ver = re.split(r'@+', name)
@@ -121,6 +133,9 @@ def collect_syms(f):
       else:
         sym['Default'] = True
         sym['Version'] = None
+
+      # Add visibility information
+      sym['Visibility'] = visibility.get(name, 'DEFAULT')
       syms.append(sym)
 
   if toc is None:
@@ -556,6 +571,7 @@ Examples:
   def is_exported(s):
     conditions = [
       s['Bind'] != 'LOCAL',
+      s['Visibility'] != 'HIDDEN',
       s['Type'] != 'NOTYPE',
       s['Ndx'] != 'UND',
       s['Name'] not in ['', '_init', '_fini']]
