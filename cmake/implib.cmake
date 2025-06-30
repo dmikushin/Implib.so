@@ -56,7 +56,9 @@ function(target_link_implib_libraries target)
 
   # Link -ldl only once
   get_target_property(LINKED_LIBRARIES ${target} LINK_LIBRARIES)
-  if (NOT (${CMAKE_DL_LIBS} IN_LIST LINKED_LIBRARIES))
+  if (LINKED_LIBRARIES AND NOT (${CMAKE_DL_LIBS} IN_LIST LINKED_LIBRARIES))
+    target_link_libraries(${target} ${linkage} ${CMAKE_DL_LIBS})
+  elseif (NOT LINKED_LIBRARIES)
     target_link_libraries(${target} ${linkage} ${CMAKE_DL_LIBS})
   endif()
 endfunction()
