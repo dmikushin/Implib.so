@@ -25,11 +25,11 @@ root = os.path.dirname(__file__)
 
 def warn(msg):
   """Emits a nicely-decorated warning."""
-  sys.stderr.write('{}: warning: {}\n'.format(me, msg))
+  sys.stderr.write(f'{me}: warning: {msg}\n')
 
 def error(msg):
   """Emits a nicely-decorated error and exits."""
-  sys.stderr.write('{}: error: {}\n'.format(me, msg))
+  sys.stderr.write(f'{me}: error: {msg}\n')
   sys.exit(1)
 
 def run(args, stdin=''):
@@ -47,7 +47,7 @@ def run(args, stdin=''):
   out = out.decode('utf-8')
   err = err.decode('utf-8')
   if p.returncode != 0 or err:
-    error("{} failed with retcode {}:\n{}".format(args[0], p.returncode, err))
+    error(f"{args[0]} failed with retcode {p.returncode}:\n{err}")
   return out, err
 
 def is_binary_file(filename):
@@ -140,7 +140,7 @@ def collect_syms(f):
       syms.append(sym)
 
   if toc is None:
-    error("failed to analyze symbols in {}".format(f))
+    error(f"failed to analyze symbols in {f}")
 
   return syms
 
@@ -239,7 +239,7 @@ def collect_relocs(f):
         rel[sym_name] = (p[0], int(p[1], 16))
 
   if toc is None:
-    error("failed to analyze relocations in {}".format(f))
+    error(f"failed to analyze relocations in {f}")
 
   return rels
 
@@ -266,7 +266,7 @@ def collect_sections(f):
         sections.append(sec)
 
   if toc is None:
-    error("failed to analyze sections in {}".format(f))
+    error(f"failed to analyze sections in {f}")
 
   return sections
 
@@ -283,7 +283,8 @@ def read_unrelocated_data(input_name, syms, secs):
       # TODO: binary search (bisect)
       sec = [sec for sec in secs if is_symbol_in_section(s, sec)]
       if len(sec) != 1:
-        error("failed to locate section for interval [{0:x}, {1:x})".format(s['Value'], s['Value'] + s['Size']))
+        error("failed to locate section for interval [{0:x}, {1:x})"
+              .format(s['Value'], s['Value'] + s['Size']))
       sec = sec[0]
       f.seek(sec['Off'])
       data[name] = f.read(s['Size'])
@@ -338,10 +339,10 @@ extern "C" {
       sym_name, addend = val['Symbol\'s Name + Addend']
       sym_name = re.sub(r'@.*', '', sym_name)  # Can we pin version in C?
       if sym_name not in cls_syms and sym_name not in printed:
-        ss.append('''\
-extern const char {}[];
+        ss.append(f'''\
+extern const char {sym_name}[];
 
-'''.format(sym_name))
+''')
 
   # Collect variable infos
 
@@ -352,7 +353,7 @@ extern const char {}[];
     if s['Demangled Name'].startswith('typeinfo name'):
       declarator = 'const unsigned char %s[]'
     else:
-      field_types = ('{} field_{};'.format(c_types[typ], i) for i, (typ, _) in enumerate(data))
+      field_types = (f'{c_types[typ]} field_{i};' for i, (typ, _) in enumerate(data))
       declarator = 'const struct { %s } %%s' % ' '.join(field_types)  # pylint: disable=C0209  # consider-using-f-string
     vals = []
     for typ, val in data:
@@ -361,7 +362,7 @@ extern const char {}[];
       else:
         sym_name, addend = val['Symbol\'s Name + Addend']
         sym_name = re.sub(r'@.*', '', sym_name)  # Can we pin version in C?
-        vals.append('(const char *)&{} + {}'.format(sym_name, addend))
+        vals.append(f'(const char *)&{sym_name} + {addend}')
     code_info[name] = (declarator, '{ %s }' % ', '.join(vals))  # pylint: disable= C0209  # consider-using-f-string
 
   # Print declarations
@@ -369,18 +370,18 @@ extern const char {}[];
   for name, (decl, _) in sorted(code_info.items()):
     type_name = name + '_type'
     type_decl = decl % type_name
-    ss.append('''\
-typedef {};
-extern __attribute__((weak)) {} {};
-'''.format(type_decl, type_name, name))
+    ss.append(f'''\
+typedef {type_decl};
+extern __attribute__((weak)) {type_name} {name};
+''')
 
   # Print definitions
 
   for name, (_, init) in sorted(code_info.items()):
     type_name = name + '_type'
-    ss.append('''\
-const {} {} = {};
-'''.format(type_name, name, init))
+    ss.append(f'''\
+const {type_name} {name} = {init};
+''')
 
   ss.append('''\
 #ifdef __cplusplus
@@ -562,7 +563,7 @@ Examples:
   target_dir = os.path.join(root, 'arch', target)
 
   if not os.path.exists(target_dir):
-    error("unknown architecture '{}'".format(target))
+    error(f"unknown architecture '{target}'")
 
   cfg = configparser.ConfigParser(inline_comment_prefixes=';')
   cfg.read(target_dir + '/config.ini')
@@ -603,7 +604,7 @@ Examples:
   exported_data = [s['Name'] for s in syms if is_data_symbol(s)]
   if exported_data:
     # TODO: we can generate wrappers for const data without relocations (or only code relocations)
-    warn("library '{}' contains data symbols which won't be intercepted: ".format(input_name)
+    warn(f"library '{input_name}' contains data symbols which won't be intercepted: "
          + ', '.join(exported_data))
 
   # Collect functions
@@ -617,17 +618,17 @@ Examples:
     if not s['Default']:
       # TODO: support versions
       if not warn_versioned:
-        warn("library {} contains versioned symbols which are NYI".format(input_name))
+        warn(f"library {input_name} contains versioned symbols which are NYI")
         warn_versioned = True
       if verbose:
-        print("Skipping versioned symbol {}".format(s['Name']))
+        print(f"Skipping versioned symbol {s['Name']}")
       continue
     all_funs.add(s['Name'])
 
   if funs is None:
     funs = sorted(list(all_funs))
     if not funs and not quiet:
-      warn("no public functions were found in {}".format(input_name))
+      warn(f"no public functions were found in {input_name}")
   else:
     missing_funs = [name for name in funs if name not in all_funs]
     if missing_funs:
@@ -637,7 +638,7 @@ Examples:
   if verbose:
     print("Exported functions:")
     for i, fun in enumerate(funs):
-      print("  {}: {}".format(i, fun))
+      print(f"  {i}: {fun}")
 
   # Collect vtables
 
@@ -659,14 +660,14 @@ Examples:
     if verbose:
       print("Exported classes:")
       for cls, _ in sorted(cls_tables.items()):
-        print("  {}".format(cls))
+        print(f"  {cls}")
 
     secs = collect_sections(input_name)
     if verbose:
       print("Sections:")
       for sec in secs:
-        print("  {0}: [{1:x}, {2:x}), ".format(sec['Name'], sec['Address'], sec['Address'] + sec['Size']) +
-              "at {0:x}".format(sec['Off']))
+        print("  {0}: [{1:x}, {2:x}), at {3:x}".format(
+            sec['Name'], sec['Address'], sec['Address'] + sec['Size'], sec['Off']))
 
     bites = read_unrelocated_data(input_name, cls_syms, secs)
 
@@ -675,14 +676,14 @@ Examples:
       print("Relocs:")
       for rel in rels:
         sym_add = rel['Symbol\'s Name + Addend']
-        print("  {}: {}".format(rel['Offset'], sym_add))
+        print(f"  {rel['Offset']}: {sym_add}")
 
     cls_data = collect_relocated_data(cls_syms, bites, rels, ptr_size, symbol_reloc_types)
     if verbose:
       print("Class data:")
       for name, data in sorted(cls_data.items()):
         demangled_name = cls_syms[name]['Demangled Name']
-        print("  {} ({}):".format(name, demangled_name))
+        print(f"  {name} ({demangled_name}):")
         for typ, val in data:
           print("    " + str(val if typ != 'reloc' else val['Symbol\'s Name + Addend']))
 
@@ -696,10 +697,10 @@ Examples:
       suffix = re.sub(r'\.def$', '', suffix)
   lib_suffix = re.sub(r'[^a-zA-Z_0-9]+', '_', suffix)
 
-  tramp_file = '{}.tramp.S'.format(suffix)
+  tramp_file = f'{suffix}.tramp.S'
   with open(os.path.join(outdir, tramp_file), 'w') as f:
     if not quiet:
-      print("Generating {}...".format(tramp_file))
+      print(f"Generating {tramp_file}...")
     with open(target_dir + '/table.S.tpl', 'r') as t:
       table_text = string.Template(t.read()).substitute(
         lib_suffix=lib_suffix,
@@ -719,13 +720,13 @@ Examples:
 
   # Generate C code
 
-  init_file = '{}.init.c'.format(suffix)
+  init_file = f'{suffix}.init.c'
   with open(os.path.join(outdir, init_file), 'w') as f:
     if not quiet:
-      print("Generating {}...".format(init_file))
+      print(f"Generating {init_file}...")
     with open(os.path.join(root, 'arch/common/init.c.tpl'), 'r') as t:
       if funs:
-        sym_names = ',\n  '.join('"{}"'.format(name) for name in funs) + ','
+        sym_names = ',\n  '.join(f'"{name}"' for name in funs) + ','
       else:
         sym_names = ''
       init_text = string.Template(t.read()).substitute(
