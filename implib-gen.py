@@ -283,8 +283,7 @@ def read_unrelocated_data(input_name, syms, secs):
       # TODO: binary search (bisect)
       sec = [sec for sec in secs if is_symbol_in_section(s, sec)]
       if len(sec) != 1:
-        error("failed to locate section for interval [{0:x}, {1:x})"
-              .format(s['Value'], s['Value'] + s['Size']))
+        error(f"failed to locate section for interval [{s['Value']:x}, {s['Value'] + s['Size']:x})")
       sec = sec[0]
       f.seek(sec['Off'])
       data[name] = f.read(s['Size'])
@@ -423,12 +422,12 @@ def main():
   """Driver function"""
   parser = argparse.ArgumentParser(description="Generate wrappers for shared library functions.",
                                    formatter_class=argparse.RawDescriptionHelpFormatter,
-                                   epilog="""\
+                                   epilog=f"""\
 Examples:
-  $ python3 {} /usr/lib/x86_64-linux-gnu/libaccountsservice.so.0
+  $ python3 {me} /usr/lib/x86_64-linux-gnu/libaccountsservice.so.0
   Generating libaccountsservice.so.0.tramp.S...
   Generating libaccountsservice.so.0.init.c...
-""".format(me))
+""")
 
   parser.add_argument('library',
                       metavar='LIB',
@@ -666,8 +665,8 @@ Examples:
     if verbose:
       print("Sections:")
       for sec in secs:
-        print("  {0}: [{1:x}, {2:x}), at {3:x}".format(
-            sec['Name'], sec['Address'], sec['Address'] + sec['Size'], sec['Off']))
+        print(f"  {sec['Name']}: [{sec['Address']:x}, "
+              f"{sec['Address'] + sec['Size']:x}), at {sec['Off']:x}")
 
     bites = read_unrelocated_data(input_name, cls_syms, secs)
 
