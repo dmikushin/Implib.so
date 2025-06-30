@@ -305,7 +305,8 @@ def read_unrelocated_data(input_name, syms, secs):
             sec = [sec for sec in secs if is_symbol_in_section(s, sec)]
             if len(sec) != 1:
                 error(
-                    f"failed to locate section for interval [{s['Value']:x}, {s['Value'] + s['Size']:x})"
+                    f"failed to locate section for interval "
+                    f"[{s['Value']:x}, {s['Value'] + s['Size']:x})"
                 )
             sec = sec[0]
             f.seek(sec["Off"])
@@ -382,9 +383,7 @@ extern const char {sym_name}[];
             field_types = (
                 f"{c_types[typ]} field_{i};" for i, (typ, _) in enumerate(data)
             )
-            declarator = "const struct { %s } %%s" % " ".join(
-                field_types
-            )  # pylint: disable=C0209  # consider-using-f-string
+            declarator = f"const struct {{ {' '.join(field_types)} }} %s"
         vals = []
         for typ, val in data:
             if typ != "reloc":
@@ -395,8 +394,8 @@ extern const char {sym_name}[];
                 vals.append(f"(const char *)&{sym_name} + {addend}")
         code_info[name] = (
             declarator,
-            "{ %s }" % ", ".join(vals),
-        )  # pylint: disable= C0209  # consider-using-f-string
+            f"{{ {', '.join(vals)} }}",
+        )
 
     # Print declarations
 
@@ -695,10 +694,11 @@ Examples:
 
     exported_data = [s["Name"] for s in syms if is_data_symbol(s)]
     if exported_data:
-        # TODO: we can generate wrappers for const data without relocations (or only code relocations)
+        # TODO: we can generate wrappers for const data without relocations
+        # (or only code relocations)
         warn(
-            f"library '{input_name}' contains data symbols which won't be intercepted: "
-            + ", ".join(exported_data)
+            f"library '{input_name}' contains data symbols which won't be "
+            f"intercepted: {', '.join(exported_data)}"
         )
 
     # Collect functions
