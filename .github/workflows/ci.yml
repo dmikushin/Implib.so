@@ -87,10 +87,8 @@ jobs:
       run: black --check --diff implib-gen.py scripts/
   Coverage:
     runs-on: ubuntu-latest
-    environment: secrets
     env:
       COVERAGE: 1
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       PYTHON: 'coverage run -a'
     steps:
     - uses: actions/checkout@v4
@@ -99,17 +97,16 @@ jobs:
       with:
         python-version: '3.12'
     - name: Install deps
-      run: python -m pip install codecov coverage
+      run: python -m pip install coverage
     - name: Run tests
       run: scripts/travis.sh
-    - name: Upload coverage
+    - name: Generate coverage report
       run: |
         for t in tests/*; do
           if test -d $t -a -f $t/.coverage; then
-            (cd $t && coverage xml)
+            (cd $t && coverage xml && coverage report)
           fi
         done
-        codecov --required
   cmake:
     runs-on: ${{ matrix.os }}
     strategy:
