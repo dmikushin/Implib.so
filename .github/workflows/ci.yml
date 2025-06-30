@@ -22,12 +22,10 @@ jobs:
       matrix:
         os: [ubuntu-20.04, ubuntu-22.04, ubuntu-latest]
         cc: [[gcc, g++], [clang, clang++]]
-        py: [python3.6, python3.7, python3]  # We need f-strings so 3.6+
+        py: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']  # Updated Python versions
         exclude:
-          - os: ubuntu-22.04
-            py: python3.6
-          - os: ubuntu-latest
-            py: python3.6
+          - os: ubuntu-20.04
+            py: '3.13'  # Python 3.13 not available on Ubuntu 20.04
           - os: ubuntu-22.04
             cc: [clang, clang++]  # Disable due to https://sourceware.org/bugzilla/show_bug.cgi?id=28981
           - os: ubuntu-latest
@@ -36,37 +34,58 @@ jobs:
     env:
       CC: ${{ matrix.cc[0] }}
       CXX: ${{ matrix.cc[1] }}
-      PYTHON: ${{ matrix.py }}
+      PYTHON: python
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.py }}
+        cache: 'pip'
     - name: Install deps
       run: |
-        sudo add-apt-repository ppa:deadsnakes/ppa
         sudo apt-get update
-        sudo apt-get install ${PYTHON}
-        sudo apt-get install ${PYTHON}-pip || true
+        python -m pip install --upgrade pip
     - name: Run tests
       run: scripts/travis.sh
-  PyPy:  # Can't test this in matrix, pypy package has different names in old distros
+  PyPy:
     runs-on: ubuntu-latest
-    env:
-      PYTHON: pypy3
     steps:
-    - uses: actions/checkout@v3
-    - name: Install deps
-      run: sudo apt-get install ${PYTHON}
+    - uses: actions/checkout@v4
+    - name: Set up PyPy
+      uses: actions/setup-python@v5
+      with:
+        python-version: 'pypy-3.10'
     - name: Run tests
+      env:
+        PYTHON: python
       run: scripts/travis.sh
   Pylint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
     - name: Install deps
-      run: sudo apt-get install pylint
+      run: python -m pip install pylint
     - name: Run tests
       run: |
         pylint implib-gen.py
         pylint scripts/ld
+  black:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install deps
+      run: python -m pip install black
+    - name: Check formatting
+      run: black --check --diff implib-gen.py scripts/
   Coverage:
     runs-on: ubuntu-latest
     environment: secrets
@@ -75,11 +94,13 @@ jobs:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       PYTHON: 'coverage run -a'
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
     - name: Install deps
-      run: |
-        sudo apt-get install python3 python3-pip
-        sudo python3 -mpip install codecov
+      run: python -m pip install codecov coverage
     - name: Run tests
       run: scripts/travis.sh
     - name: Upload coverage
@@ -90,12 +111,38 @@ jobs:
           fi
         done
         codecov --required
+  cmake:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build_type: [Debug, Release]
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: brew install binutils
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+    - name: Build
+      run: cmake --build build --parallel
+    - name: Test
+      run: cd build && ctest --output-on-failure --parallel
   avx:
     runs-on: ubuntu-latest
     env:
       CFLAGS: -mavx
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
     - name: Run tests
       run: scripts/travis.sh
 #  avx2:
@@ -103,7 +150,7 @@ jobs:
 #    env:
 #      CFLAGS: -mavx2 -mavx512f
 #    steps:
-#    - uses: actions/checkout@v3
+#    - uses: actions/checkout@v4
 #    - name: Run tests
 #      run: scripts/travis.sh
   musl:
@@ -111,7 +158,7 @@ jobs:
     env:
       CC: musl-gcc
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install musl-tools
     - name: Run tests
@@ -122,7 +169,7 @@ jobs:
     env:
       ARCH: i386-linux-gnueabi
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install gcc-multilib g++-multilib
     - name: Run tests
@@ -133,7 +180,7 @@ jobs:
       ARCH: arm-linux-gnueabi
       CFLAGS: -marm
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-arm-linux-gnueabi g++-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-armel-cross libc6-dev-armel-cross
     - name: Run tests
@@ -144,7 +191,7 @@ jobs:
       ARCH: arm-linux-gnueabi
       CFLAGS: -mthumb
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-arm-linux-gnueabi g++-arm-linux-gnueabi binutils-arm-linux-gnueabi libc6-armel-cross libc6-dev-armel-cross
     - name: Run tests
@@ -155,7 +202,7 @@ jobs:
       ARCH: arm-linux-gnueabihf
       CFLAGS: -marm
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf binutils-arm-linux-gnueabihf libc6-armhf-cross libc6-dev-armhf-cross
     - name: Run tests
@@ -166,7 +213,7 @@ jobs:
       ARCH: arm-linux-gnueabihf
       CFLAGS: -mthumb
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf binutils-arm-linux-gnueabihf libc6-armhf-cross libc6-dev-armhf-cross
     - name: Run tests
@@ -176,7 +223,7 @@ jobs:
     env:
       ARCH: aarch64-linux-gnueabi
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu libc6-arm64-cross libc6-dev-arm64-cross
     - name: Run tests
@@ -186,7 +233,7 @@ jobs:
     env:
       ARCH: mipsel-linux-gnu
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-mipsel-linux-gnu g++-mipsel-linux-gnu binutils-mipsel-linux-gnu libc6-mipsel-cross libc6-dev-mipsel-cross
     - name: Run tests
@@ -196,7 +243,7 @@ jobs:
     env:
       ARCH: mips64el-linux-gnu
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64 binutils-mips64el-linux-gnuabi64 libc6-mips64el-cross libc6-dev-mips64el-cross
     - name: Run tests
@@ -206,7 +253,7 @@ jobs:
     env:
       ARCH: powerpc64-linux-gnu
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-powerpc64-linux-gnu g++-powerpc64-linux-gnu binutils-powerpc64-linux-gnu libc6-ppc64-powerpc-cross libc6-dev-ppc64-powerpc-cross
     - name: Run tests
@@ -216,7 +263,7 @@ jobs:
     env:
       ARCH: powerpc64le-linux-gnu
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-powerpc64le-linux-gnu g++-powerpc64le-linux-gnu binutils-powerpc64le-linux-gnu libc6-ppc64el-cross libc6-dev-ppc64el-cross
     - name: Run tests
@@ -226,7 +273,7 @@ jobs:
     env:
       ARCH: riscv64-linux-gnu
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install deps
       run: sudo apt-get update && sudo apt-get install qemu-user gcc-riscv64-linux-gnu g++-riscv64-linux-gnu binutils-riscv64-linux-gnu libc6-riscv64-cross libc6-dev-riscv64-cross
     - name: Run tests

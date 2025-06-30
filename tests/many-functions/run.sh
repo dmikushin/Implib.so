@@ -18,9 +18,7 @@ fi
 
 . ../common.sh
 
-for i in `seq 0 8192`; do
-  echo "int foo$i() { return $i; }"
-done > test.c
+seq 0 8192 | awk '{print "int foo" $1 "() { return " $1 "; }"}' > test.c
 
 $CC $CFLAGS -shared -fPIC test.c -o libtest.so
 

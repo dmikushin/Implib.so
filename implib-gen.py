@@ -89,7 +89,8 @@ def collect_syms(f):
     if len(parts) >= 3:
       symbol_type = parts[1]
       symbol_name = parts[2]
-      visibility[symbol_name] = 'PUBLIC' if symbol_type == 'T' else 'HIDDEN'
+      # Global symbols have uppercase types, local/weak have lowercase
+      visibility[symbol_name] = 'DEFAULT' if symbol_type.isupper() else 'HIDDEN'
 
   # Use readelf to collect symbols
   readelf_out, _ = run(['readelf', '-sW', f])
@@ -178,6 +179,7 @@ def collect_def_exports(filename):
         'Default': True,
         'Version': None,
         'Size': 0,
+        'Visibility': 'DEFAULT',
       }
       syms.append(sym)
 
@@ -663,7 +665,7 @@ Examples:
     if verbose:
       print("Sections:")
       for sec in secs:
-        print("  {0}: [1:x}, {2:x}), ".format(sec['Name'], sec['Address'], sec['Address'] + sec['Size']) +
+        print("  {0}: [{1:x}, {2:x}), ".format(sec['Name'], sec['Address'], sec['Address'] + sec['Size']) +
               "at {0:x}".format(sec['Off']))
 
     bites = read_unrelocated_data(input_name, cls_syms, secs)
@@ -686,7 +688,12 @@ Examples:
 
   # Generate assembly code
 
-  suffix = args.suffix if args.suffix is not None else os.path.basename(input_name)
+  if args.suffix is not None:
+    suffix = args.suffix
+  else:
+    suffix = os.path.basename(input_name)
+    if not binary:
+      suffix = re.sub(r'\.def$', '', suffix)
   lib_suffix = re.sub(r'[^a-zA-Z_0-9]+', '_', suffix)
 
   tramp_file = '{}.tramp.S'.format(suffix)
