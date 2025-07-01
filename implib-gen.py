@@ -60,7 +60,8 @@ def run(args, stdin=""):
 
 
 def is_binary_file(filename):
-    """Check if file is an ELF."""
+    """Check if file is an ELF or Mach-O binary."""
+    # First try readelf for ELF files
     cmd = ["readelf", "-d", filename]
     with subprocess.Popen(
         cmd,
@@ -69,7 +70,26 @@ def is_binary_file(filename):
         stderr=subprocess.DEVNULL,
     ) as p:
         p.communicate()
-    return p.returncode == 0
+    if p.returncode == 0:
+        return True
+    
+    # If readelf fails, try file command for Mach-O files (macOS)
+    try:
+        cmd = ["file", filename]
+        with subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        ) as p:
+            out, _ = p.communicate()
+            output = out.decode("utf-8", errors="ignore")
+            # Check for Mach-O binary signatures
+            return any(sig in output for sig in ["Mach-O", "shared library"])
+    except (OSError, UnicodeDecodeError):
+        pass
+    
+    return False
 
 
 def make_toc(words, renames=None):
@@ -107,54 +127,100 @@ def collect_syms(f):
             # Global symbols have uppercase types, local/weak have lowercase
             visibility[symbol_name] = "DEFAULT" if symbol_type.isupper() else "HIDDEN"
 
-    # Use readelf to collect symbols
-    readelf_out, _ = run(["readelf", "-sW", f])
+    # Check if this is a Mach-O file (macOS)
+    try:
+        # Try to detect Mach-O files
+        file_out, _ = run(["file", f])
+        is_macho = "Mach-O" in file_out
+    except:
+        is_macho = False
 
-    toc = None
+    if is_macho:
+        # Use nm for Mach-O files to extract symbols  
+        nm_detailed_out, _ = run(["nm", "-D", f])
+        readelf_out = nm_detailed_out
+    else:
+        # Use readelf for ELF files
+        readelf_out, _ = run(["readelf", "-sW", f])
+
     syms = []
     syms_set = set()
 
-    for line in readelf_out.splitlines():
-        line = line.strip()
-
-        # Strip out strange markers in powerpc64le ELFs
-        line = re.sub(r"\[<localentry>: [0-9]+\]", "", line)
-
-        if not line:
-            # Next symtab
-            toc = None
-            continue
-
-        words = re.split(r" +", line)
-
-        if line.startswith("Num"):  # Header?
-            if toc is not None:
-                error("multiple headers in output of readelf")
-            # Colons are different across readelf versions so get rid of them.
-            toc = make_toc(map(lambda n: n.replace(":", ""), words))
-        elif toc is not None:
-            sym = parse_row(words, toc, ["Value"])
-            name = sym["Name"]
-            if not name:
+    if is_macho:
+        # Parse nm output for Mach-O files (simplified)
+        for line in readelf_out.splitlines():
+            line = line.strip()
+            if not line:
                 continue
-            if name in syms_set:
+            
+            parts = line.split()
+            if len(parts) >= 3:
+                address = parts[0]
+                symbol_type = parts[1]
+                name = parts[2]
+                
+                if name in syms_set:
+                    continue
+                syms_set.add(name)
+                
+                # Create minimal symbol info for Mach-O
+                sym = {
+                    "Name": name,
+                    "Value": int(address, 16) if address != "U" else 0,
+                    "Size": 0,  # nm doesn't provide size info
+                    "Type": "FUNC" if symbol_type.upper() == "T" else "OBJECT",
+                    "Bind": "GLOBAL" if symbol_type.isupper() else "LOCAL",
+                    "Ndx": "1" if symbol_type.upper() != "U" else "UND",
+                    "Default": True,
+                    "Version": None,
+                    "Visibility": visibility.get(name, "DEFAULT")
+                }
+                syms.append(sym)
+    else:
+        # Parse readelf output for ELF files
+        toc = None
+        
+        for line in readelf_out.splitlines():
+            line = line.strip()
+
+            # Strip out strange markers in powerpc64le ELFs
+            line = re.sub(r"\[<localentry>: [0-9]+\]", "", line)
+
+            if not line:
+                # Next symtab
+                toc = None
                 continue
-            syms_set.add(name)
-            sym["Size"] = int(sym["Size"], 0)  # Readelf is inconsistent on Size format
-            if "@" in name:
-                sym["Default"] = "@@" in name
-                name, ver = re.split(r"@+", name)
-                sym["Name"] = name
-                sym["Version"] = ver
-            else:
-                sym["Default"] = True
-                sym["Version"] = None
 
-            # Add visibility information
-            sym["Visibility"] = visibility.get(name, "DEFAULT")
-            syms.append(sym)
+            words = re.split(r" +", line)
 
-    if toc is None:
+            if line.startswith("Num"):  # Header?
+                if toc is not None:
+                    error("multiple headers in output of readelf")
+                # Colons are different across readelf versions so get rid of them.
+                toc = make_toc(map(lambda n: n.replace(":", ""), words))
+            elif toc is not None:
+                sym = parse_row(words, toc, ["Value"])
+                name = sym["Name"]
+                if not name:
+                    continue
+                if name in syms_set:
+                    continue
+                syms_set.add(name)
+                sym["Size"] = int(sym["Size"], 0)  # Readelf is inconsistent on Size format
+                if "@" in name:
+                    sym["Default"] = "@@" in name
+                    name, ver = re.split(r"@+", name)
+                    sym["Name"] = name
+                    sym["Version"] = ver
+                else:
+                    sym["Default"] = True
+                    sym["Version"] = None
+
+                # Add visibility information
+                sym["Visibility"] = visibility.get(name, "DEFAULT")
+                syms.append(sym)
+
+    if not is_macho and toc is None:
         error(f"failed to analyze symbols in {f}")
 
     return syms
