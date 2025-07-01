@@ -165,8 +165,12 @@ def collect_def_exports(filename):
 
     syms = []
 
-    with open(filename, "r") as f:
-        lines = f.readlines()
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except (UnicodeDecodeError, IOError):
+        # Not a text file, return empty list
+        return syms
     lines.reverse()
 
     while lines:
