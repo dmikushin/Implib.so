@@ -72,7 +72,7 @@ def is_binary_file(filename):
         p.communicate()
     if p.returncode == 0:
         return True
-    
+
     # If readelf fails, try file command for Mach-O files (macOS)
     try:
         cmd = ["file", filename]
@@ -88,7 +88,7 @@ def is_binary_file(filename):
             return any(sig in output for sig in ["Mach-O", "shared library"])
     except (OSError, UnicodeDecodeError):
         pass
-    
+
     return False
 
 
@@ -132,11 +132,11 @@ def collect_syms(f):
         # Try to detect Mach-O files
         file_out, _ = run(["file", f])
         is_macho = "Mach-O" in file_out
-    except:
+    except (OSError, subprocess.SubprocessError):
         is_macho = False
 
     if is_macho:
-        # Use nm for Mach-O files to extract symbols  
+        # Use nm for Mach-O files to extract symbols
         nm_detailed_out, _ = run(["nm", "-D", f])
         readelf_out = nm_detailed_out
     else:
@@ -152,17 +152,17 @@ def collect_syms(f):
             line = line.strip()
             if not line:
                 continue
-            
+
             parts = line.split()
             if len(parts) >= 3:
                 address = parts[0]
                 symbol_type = parts[1]
                 name = parts[2]
-                
+
                 if name in syms_set:
                     continue
                 syms_set.add(name)
-                
+
                 # Create minimal symbol info for Mach-O
                 sym = {
                     "Name": name,
@@ -173,13 +173,13 @@ def collect_syms(f):
                     "Ndx": "1" if symbol_type.upper() != "U" else "UND",
                     "Default": True,
                     "Version": None,
-                    "Visibility": visibility.get(name, "DEFAULT")
+                    "Visibility": visibility.get(name, "DEFAULT"),
                 }
                 syms.append(sym)
     else:
         # Parse readelf output for ELF files
         toc = None
-        
+
         for line in readelf_out.splitlines():
             line = line.strip()
 
@@ -206,7 +206,9 @@ def collect_syms(f):
                 if name in syms_set:
                     continue
                 syms_set.add(name)
-                sym["Size"] = int(sym["Size"], 0)  # Readelf is inconsistent on Size format
+                sym["Size"] = int(
+                    sym["Size"], 0
+                )  # Readelf is inconsistent on Size format
                 if "@" in name:
                     sym["Default"] = "@@" in name
                     name, ver = re.split(r"@+", name)
@@ -278,6 +280,15 @@ def collect_def_exports(filename):
 def collect_relocs(f):
     """Collect ELF dynamic relocs."""
 
+    # Check if this is a Mach-O file (macOS)
+    try:
+        file_out, _ = run(["file", f])
+        if "Mach-O" in file_out:
+            # Return empty list for Mach-O files - relocations not supported yet
+            return []
+    except (OSError, subprocess.SubprocessError):
+        pass
+
     out, _ = run(["readelf", "-rW", f])
 
     toc = None
@@ -333,6 +344,15 @@ def collect_relocs(f):
 
 def collect_sections(f):
     """Collect section info from ELF."""
+
+    # Check if this is a Mach-O file (macOS)
+    try:
+        file_out, _ = run(["file", f])
+        if "Mach-O" in file_out:
+            # Return empty list for Mach-O files - sections not supported yet
+            return []
+    except (OSError, subprocess.SubprocessError):
+        pass
 
     out, _ = run(["readelf", "-SW", f])
 
@@ -502,6 +522,17 @@ const {type_name} {name} = {init};
 
 def read_soname(f):
     """Read ELF's SONAME."""
+
+    # Check if this is a Mach-O file (macOS)
+    try:
+        file_out, _ = run(["file", f])
+        if "Mach-O" in file_out:
+            # For Mach-O files, return the filename as soname
+            import os
+
+            return os.path.basename(f)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
     out, _ = run(["readelf", "-d", f])
 
@@ -814,7 +845,7 @@ Examples:
     # Collect vtables
 
     if args.vtables:
-        if not binary and input_name.endswith('.def'):
+        if not binary and input_name.endswith(".def"):
             error("vtables not supported for .def files")
 
         cls_tables = {}
