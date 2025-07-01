@@ -9,9 +9,15 @@
 
   .globl $sym
   .p2align 4
+#ifndef __APPLE__
   .type $sym, %function
+#endif
 #ifndef IMPLIB_EXPORT_SHIMS
+#ifndef __APPLE__
   .hidden $sym
+#else
+  .private_extern $sym
+#endif
 #endif
 $sym:
   .cfi_startproc

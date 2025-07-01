@@ -7,24 +7,43 @@
  * found in the LICENSE.txt file.
  */
 
+#ifdef __APPLE__
+  .section __DATA,__data
+#else
   .section .note.GNU-stack,"",@progbits
-
   .data
+#endif
 
   .globl _${lib_suffix}_tramp_table
+#ifndef __APPLE__
   .hidden _${lib_suffix}_tramp_table
+#else
+  .private_extern _${lib_suffix}_tramp_table
+#endif
   .align 8
 _${lib_suffix}_tramp_table:
   .zero $table_size
 
+#ifdef __APPLE__
+  .section __TEXT,__text
+#else
   .text
+#endif
 
   .globl _${lib_suffix}_tramp_resolve
+#ifndef __APPLE__
   .hidden _${lib_suffix}_tramp_resolve
+#else
+  .private_extern _${lib_suffix}_tramp_resolve
+#endif
 
   .globl _${lib_suffix}_save_regs_and_resolve
+#ifndef __APPLE__
   .hidden _${lib_suffix}_save_regs_and_resolve
   .type _${lib_suffix}_save_regs_and_resolve, %function
+#else
+  .private_extern _${lib_suffix}_save_regs_and_resolve
+#endif
 _${lib_suffix}_save_regs_and_resolve:
   .cfi_startproc
 
