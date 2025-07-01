@@ -528,8 +528,6 @@ def read_soname(f):
         file_out, _ = run(["file", f])
         if "Mach-O" in file_out:
             # For Mach-O files, return the filename as soname
-            import os
-
             return os.path.basename(f)
     except (OSError, subprocess.SubprocessError):
         pass
