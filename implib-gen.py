@@ -748,7 +748,7 @@ Examples:
     # Collect vtables
 
     if args.vtables:
-        if not binary:
+        if not binary and input_name.endswith('.def'):
             error("vtables not supported for .def files")
 
         cls_tables = {}
