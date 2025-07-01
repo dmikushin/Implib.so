@@ -124,7 +124,12 @@ jobs:
         brew install binutils
         echo "/usr/local/opt/binutils/bin" >> $GITHUB_PATH
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+      run: |
+        if [[ "$RUNNER_OS" == "macOS" ]]; then
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_SYSTEM_PROCESSOR=x86_64
+        else
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        fi
     - name: Build
       run: cmake --build build --parallel
     - name: Test
