@@ -20,12 +20,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-latest]
+        os: [ubuntu-22.04, ubuntu-latest]
         cc: [[gcc, g++], [clang, clang++]]
         py: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']  # Updated Python versions
         exclude:
-          - os: ubuntu-20.04
-            py: '3.13'  # Python 3.13 not available on Ubuntu 20.04
           - os: ubuntu-22.04
             cc: [clang, clang++]  # Disable due to https://sourceware.org/bugzilla/show_bug.cgi?id=28981
           - os: ubuntu-latest
