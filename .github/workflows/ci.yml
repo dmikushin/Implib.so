@@ -110,7 +110,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-13]
         build_type: [Debug, Release]
     steps:
     - uses: actions/checkout@v4
@@ -122,7 +122,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         brew install binutils
-        echo "/opt/homebrew/opt/binutils/bin" >> $GITHUB_PATH
+        echo "/usr/local/opt/binutils/bin" >> $GITHUB_PATH
     - name: Configure CMake
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
     - name: Build
