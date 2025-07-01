@@ -450,12 +450,16 @@ def read_soname(f):
 def read_library_name(filename):
     """Read library name from .def file."""
 
-    with open(filename, "r") as f:
-        for line in f.readlines():
-            line = line.strip()
-            m = re.match(r"^(?:LIBRARY|NAME)\s+([A-Za-z0-9_.\-]+)$", line)
-            if m is not None:
-                return m[1]
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            for line in f.readlines():
+                line = line.strip()
+                m = re.match(r"^(?:LIBRARY|NAME)\s+([A-Za-z0-9_.\-]+)$", line)
+                if m is not None:
+                    return m[1]
+    except (UnicodeDecodeError, IOError):
+        # Not a text file, skip
+        pass
 
     return None
 
