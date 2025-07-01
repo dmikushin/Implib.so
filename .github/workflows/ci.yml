@@ -124,7 +124,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         brew install binutils
-        echo "/usr/local/opt/binutils/bin" >> $GITHUB_PATH
+        echo "/opt/homebrew/opt/binutils/bin" >> $GITHUB_PATH
     - name: Configure CMake
       run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
     - name: Build
